@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	storeutil "github.com/danielfoehrkn/kubeswitch/pkg/store"
 	historyutil "github.com/danielfoehrkn/kubeswitch/pkg/subcommands/history/util"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ktr0731/go-fuzzyfinder"
@@ -64,10 +65,10 @@ var (
 	logger = logrus.New()
 )
 
-func Switcher(stores []storetypes.KubeconfigStore, config *types.Config, stateDir string, noIndex, showPreview bool) (*string, *string, error) {
+func Switcher(stores []storetypes.KubeconfigStore, config *types.Config, stateDir string, noIndex, showPreview bool) (*string, *string, *string, *string, error) {
 	c, err := DoSearch(stores, config, stateDir, noIndex)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	// here we asynchronously read from the result channel until the wait group is done (call wg.Done for all stores)
@@ -117,11 +118,11 @@ func Switcher(stores []storetypes.KubeconfigStore, config *types.Config, stateDi
 
 	kubeconfigPath, selectedContext, err := showFuzzySearch(kindToStore, showPreview)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	if len(kubeconfigPath) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 
 	// map back kubeconfig path to the store kind
@@ -136,12 +137,12 @@ func Switcher(stores []storetypes.KubeconfigStore, config *types.Config, stateDi
 	// use the store to get the kubeconfig for the selected kubeconfig path
 	kubeconfigData, err := store.GetKubeconfigForPath(kubeconfigPath, tags)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	kubeconfig, err := kubeconfigutil.NewKubeconfig(kubeconfigData)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse selected kubeconfig. Please check if this file is a valid kubeconfig: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to parse selected kubeconfig. Please check if this file is a valid kubeconfig: %v", err)
 	}
 
 	// save the original selected context for the history
@@ -154,17 +155,17 @@ func Switcher(stores []storetypes.KubeconfigStore, config *types.Config, stateDi
 	}
 
 	if err := kubeconfig.SetContext(selectedContext, aliasutil.GetContextForAlias(selectedContext, aliasToContext), store.GetContextPrefix(kubeconfigPath)); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	if err := kubeconfig.SetKubeswitchContext(contextForHistory); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	// write a temporary kubeconfig file and return the path
 	tempKubeconfigPath, err := kubeconfig.WriteKubeconfigFile()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to write temporary kubeconfig file: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to write temporary kubeconfig file: %v", err)
 	}
 
 	// get namespace for current context
@@ -175,7 +176,8 @@ func Switcher(stores []storetypes.KubeconfigStore, config *types.Config, stateDi
 		logger.Warnf("failed to append context to history file: %v", err)
 	}
 
-	return &tempKubeconfigPath, &selectedContext, nil
+	storeName := storeutil.DeriveStoreName(store, kubeconfigPath)
+	return &tempKubeconfigPath, &selectedContext, &storeName, &kubeconfigPath, nil
 }
 
 // writeIndex tries to write the Index file for the kubeconfig store

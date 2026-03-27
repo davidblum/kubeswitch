@@ -43,8 +43,8 @@ var (
 				return err
 			}
 
-			kubeconfigPath, contextName, err := history.SetPreviousContext(stores, config, stateDirectory, noIndex)
-			reportNewContext(kubeconfigPath, contextName)
+			kubeconfigPath, contextName, storeName, sourcePath, err := history.SetPreviousContext(stores, config, stateDirectory, noIndex)
+			reportNewContext(kubeconfigPath, contextName, storeName, sourcePath)
 			return err
 		},
 	}
@@ -63,8 +63,8 @@ var (
 				return err
 			}
 
-			kubeconfigPath, contextName, err := history.SetLastContext(stores, config, stateDirectory, noIndex)
-			reportNewContext(kubeconfigPath, contextName)
+			kubeconfigPath, contextName, storeName, sourcePath, err := history.SetLastContext(stores, config, stateDirectory, noIndex)
+			reportNewContext(kubeconfigPath, contextName, storeName, sourcePath)
 			return err
 		},
 	}
@@ -126,8 +126,8 @@ var (
 				return err
 			}
 
-			kubeconfigPath, contextName, err := set_context.SetContext(args[0], stores, config, stateDirectory, noIndex, true)
-			reportNewContext(kubeconfigPath, contextName)
+			kubeconfigPath, contextName, storeName, sourcePath, err := set_context.SetContext(args[0], stores, config, stateDirectory, noIndex, true)
+			reportNewContext(kubeconfigPath, contextName, storeName, sourcePath)
 			return err
 		},
 		SilenceUsage: true,
@@ -257,13 +257,22 @@ func setFlagsForContextCommands(command *cobra.Command) {
 		"show preview of the selected kubeconfig. Possibly makes sense to disable when using vault as the kubeconfig store to prevent excessive requests against the API.")
 }
 
-func reportNewContext(kubeconfigPath *string, contextName *string) {
+func reportNewContext(kubeconfigPath, contextName, storeName, sourcePath *string) {
 	if kubeconfigPath == nil || contextName == nil {
 		return
+	}
+
+	storeField := ""
+	if storeName != nil {
+		storeField = *storeName
+	}
+	sourceField := ""
+	if sourcePath != nil {
+		sourceField = *sourcePath
 	}
 
 	// print kubeconfig path and context name to std.out
 	// captured by calling script setting KUBECONFIG environment variable
 	// prefixed with "__ " to distinguish kubeconfig path output from other responses (e.g., errors, list of context, ...)
-	fmt.Printf("__ %s,%s", *kubeconfigPath, *contextName)
+	fmt.Printf("__ %s,%s,%s,%s", *kubeconfigPath, *contextName, storeField, sourceField)
 }

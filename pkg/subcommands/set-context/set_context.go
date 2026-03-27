@@ -22,6 +22,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/danielfoehrkn/kubeswitch/pkg"
+	storeutil "github.com/danielfoehrkn/kubeswitch/pkg/store"
 	storetypes "github.com/danielfoehrkn/kubeswitch/pkg/store/types"
 	historyutil "github.com/danielfoehrkn/kubeswitch/pkg/subcommands/history/util"
 	kubeconfigutil "github.com/danielfoehrkn/kubeswitch/pkg/util/kubectx_copied"
@@ -30,10 +31,10 @@ import (
 
 var logger = logrus.New()
 
-func SetContext(desiredContext string, stores []storetypes.KubeconfigStore, config *types.Config, stateDir string, noIndex bool, appendToHistory bool) (*string, *string, error) {
+func SetContext(desiredContext string, stores []storetypes.KubeconfigStore, config *types.Config, stateDir string, noIndex bool, appendToHistory bool) (*string, *string, *string, *string, error) {
 	c, err := pkg.DoSearch(stores, config, stateDir, noIndex)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	var mError *multierror.Error
@@ -61,12 +62,12 @@ func SetContext(desiredContext string, stores []storetypes.KubeconfigStore, conf
 		if desiredContext == discoveredContext.Name || matchesContextWithoutPrefix || desiredContext == discoveredContext.Alias {
 			kubeconfigData, err := kubeconfigStore.GetKubeconfigForPath(discoveredContext.Path, discoveredContext.Tags)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, nil, err
 			}
 
 			kubeconfig, err := kubeconfigutil.NewKubeconfig(kubeconfigData)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to parse kubeconfig: %v", err)
+				return nil, nil, nil, nil, fmt.Errorf("failed to parse kubeconfig: %v", err)
 			}
 
 			originalContextBeforeAlias := ""
@@ -75,36 +76,38 @@ func SetContext(desiredContext string, stores []storetypes.KubeconfigStore, conf
 			}
 
 			if err := kubeconfig.SetContext(contextWithoutPrefix, originalContextBeforeAlias, kubeconfigStore.GetContextPrefix(discoveredContext.Path)); err != nil {
-				return nil, nil, err
+				return nil, nil, nil, nil, err
 			}
 
 			if err := kubeconfig.SetKubeswitchContext(desiredContext); err != nil {
-				return nil, nil, err
+				return nil, nil, nil, nil, err
 			}
 
 			tempKubeconfigPath, err := kubeconfig.WriteKubeconfigFile()
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to write temporary kubeconfig file: %v", err)
+				return nil, nil, nil, nil, fmt.Errorf("failed to write temporary kubeconfig file: %v", err)
 			}
 
 			if appendToHistory {
 				// get namespace for current context
 				ns, err := kubeconfig.NamespaceOfContext(kubeconfig.GetCurrentContext())
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get namespace of current context: %v", err)
+					return nil, nil, nil, nil, fmt.Errorf("failed to get namespace of current context: %v", err)
 				}
 
 				if err := historyutil.AppendToHistory(desiredContext, ns); err != nil {
 					logger.Warnf("failed to append context to history file: %v", err)
 				}
 			}
-			return &tempKubeconfigPath, &desiredContext, nil
+			storeName := storeutil.DeriveStoreName(kubeconfigStore, discoveredContext.Path)
+			sourcePath := discoveredContext.Path
+			return &tempKubeconfigPath, &desiredContext, &storeName, &sourcePath, nil
 		}
 	}
 
 	if mError != nil {
-		return nil, nil, fmt.Errorf("context with name %q not found. Possibly due to errors: %v", desiredContext, mError.Error())
+		return nil, nil, nil, nil, fmt.Errorf("context with name %q not found. Possibly due to errors: %v", desiredContext, mError.Error())
 	}
 
-	return nil, nil, fmt.Errorf("context with name %q not found", desiredContext)
+	return nil, nil, nil, nil, fmt.Errorf("context with name %q not found", desiredContext)
 }

@@ -53,7 +53,7 @@ func ExecuteCommand(pattern string, command []string, stores []storetypes.Kubeco
 	}
 
 	for _, context := range contexts {
-		tmpKubeconfigFile, _, err := setcontext.SetContext(context, stores, config, stateDir, noIndex, false)
+		tmpKubeconfigFile, _, _, _, err := setcontext.SetContext(context, stores, config, stateDir, noIndex, false)
 		if err != nil {
 			return err
 		}

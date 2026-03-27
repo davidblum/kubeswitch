@@ -34,8 +34,8 @@ var (
 				return err
 			}
 
-			kubeconfigPath, contextName, err := history.SwitchToHistory(stores, config, stateDirectory, noIndex)
-			reportNewContext(kubeconfigPath, contextName)
+			kubeconfigPath, contextName, storeName, sourcePath, err := history.SwitchToHistory(stores, config, stateDirectory, noIndex)
+			reportNewContext(kubeconfigPath, contextName, storeName, sourcePath)
 			return err
 		},
 	}

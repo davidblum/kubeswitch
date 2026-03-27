@@ -71,6 +71,15 @@ function switch(){
   KUBECONFIG_PATH="${remainder%%,*}"; remainder="${remainder#*,}"
   SELECTED_CONTEXT="${remainder%%,*}"; remainder="${remainder#*,}"
 
+  # Parse optional store name and source path (fields 3 and 4)
+  if [[ "$remainder" == *,* ]]; then
+    KUBESWITCH_STORE="${remainder%%,*}"; remainder="${remainder#*,}"
+    KUBESWITCH_PATH="$remainder"
+  else
+    KUBESWITCH_STORE=""
+    KUBESWITCH_PATH=""
+  fi
+
   if [ -z ${KUBECONFIG_PATH+x} ]; then
 	# KUBECONFIG_PATH is not set
 	printf "%s\n" "$RESPONSE"
@@ -91,6 +100,8 @@ function switch(){
   fi
 
   export KUBECONFIG="$KUBECONFIG_PATH"
+  export KUBESWITCH_STORE
+  export KUBESWITCH_PATH
   printf "switched to context %s\n" "$SELECTED_CONTEXT"
 }`
 
@@ -145,6 +156,18 @@ function kubeswitch
 		# context is not set, simply return the response
 		printf "%s\n" $RESPONSE
 		return
+	end
+
+	# Parse optional store name and source path
+	if set -q split_info[3]
+		set -gx KUBESWITCH_STORE $split_info[3]
+	else
+		set -gx KUBESWITCH_STORE ""
+	end
+	if set -q split_info[4]
+		set -gx KUBESWITCH_PATH $split_info[4]
+	else
+		set -gx KUBESWITCH_PATH ""
 	end
 
 	if test ! -e "$KUBECONFIG_PATH"
@@ -219,6 +242,17 @@ function kubeswitch {
 	$KUBECONFIG_PATH = $KUBECONFIG_PATH -replace "C:", ""
 	Write-Output $KUBECONFIG_PATH
 	$SELECTED_CONTEXT = $remainder.split(",")[1]
+
+	if ($remainder.split(",").Count -ge 3) {
+		$env:KUBESWITCH_STORE = $remainder.split(",")[2]
+	} else {
+		$env:KUBESWITCH_STORE = ""
+	}
+	if ($remainder.split(",").Count -ge 4) {
+		$env:KUBESWITCH_PATH = $remainder.split(",")[3]
+	} else {
+		$env:KUBESWITCH_PATH = ""
+	}
 
 	if (-not $KUBECONFIG_PATH) { 
 		Write-Output $RESPONSE
